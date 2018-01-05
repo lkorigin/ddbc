@@ -1373,7 +1373,9 @@ version(USE_PGSQL) {
     class PGSQLDriver : Driver {
         this() {
             if (!_pqIsLoaded) {
-                DerelictPQ.load();
+                version(Derelict_Static) {}
+                else
+                    DerelictPQ.load();
                 _pqIsLoaded = true;
             }
         }
