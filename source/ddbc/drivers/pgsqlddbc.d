@@ -237,6 +237,8 @@ version(USE_PGSQL) {
 		bool autocommit = true;
         bool useSsl = true;
     	Mutex mutex;
+
+    	bool[int] customOids;
     	
     	
     	PGSQLStatement [] activeStatements;
@@ -268,6 +270,18 @@ version(USE_PGSQL) {
     	}
     	
     	PGconn * getConnection() { return conn; }
+
+    	void setCuromOids (int[] oids)
+    	{
+    	    customOids.clear ();
+    	    foreach (ref oid; oids)
+    	        customOids[oid] = true;
+    	}
+
+    	bool hasCuromOid (int oid)
+    	{
+    	    return (oid in customOids) !is null;
+    	}
     	
     	
     	this(string url, string[string] params) {
@@ -566,7 +580,10 @@ version(USE_PGSQL) {
                                     v[col] = s;
                                     break;
                                 default:
-                                    throw new SQLException("Unsupported column type " ~ to!string(t));
+                                    if (conn.hasCuromOid(t))
+                                        v[col] = s;
+                                    else
+                                        throw new SQLException("Unsupported column type " ~ to!string(t));
                             }
                         } else {
                             // binary
@@ -1371,6 +1388,8 @@ version(USE_PGSQL) {
     //Connection conn = DriverManager.getConnection(url, props);
     private __gshared static bool _pqIsLoaded = false;
     class PGSQLDriver : Driver {
+        private int[] customOids;
+
         this() {
             if (!_pqIsLoaded) {
                 version(Derelict_Static) {}
@@ -1390,10 +1409,17 @@ version(USE_PGSQL) {
     		params["ssl"] = "true";
     		return params;
     	}
-    	override ddbc.core.Connection connect(string url, string[string] params) {
+        override ddbc.core.Connection connect(string url, string[string] params) {
             url = stripDdbcPrefix(url);
-    		//writeln("PGSQLDriver.connect " ~ url);
-    		return new PGSQLConnection(url, params);
+    	    //writeln("PGSQLDriver.connect " ~ url);
+    	    auto conn = new PGSQLConnection(url, params);
+    	    conn.setCuromOids(customOids);
+    	    return conn;
+    	}
+
+    	public void registerCuromDataType (int oid)
+    	{
+    	    customOids ~= oid;
     	}
     }
 
