@@ -1,7 +1,8 @@
 project('ddbc', 'd',
-    meson_version: '>=0.40',
+    meson_version: '>=0.44.1',
     license: 'BSL-1.0',
-    version: '0.3.7'
+    version: '0.3.7',
+    subproject_dir: 'deps/'
 )
 
 project_soversion = '0'
@@ -30,9 +31,20 @@ ddbc_src = [
 
 src_dir = include_directories('source/')
 
+# determine the right version flag for the compiler we use
+dc = meson.get_compiler('d')
+dc_version_prefix = '-fversion='
+if dc.get_id() == 'llvm'
+    dc_version_prefix = '-d-version='
+elif dc.get_id() == 'dmd'
+    dc_version_prefix = '-version='
+endif
+
 #
 # Targets
 #
+pg_module_versions = ['USE_PGSQL', 'Derelict_Static']
+
 ddbc_pg_lib = library('ddbc-pgsql',
         [ddbc_src],
         include_directories: [src_dir],
@@ -40,7 +52,7 @@ ddbc_pg_lib = library('ddbc-pgsql',
         install: true,
         version: meson.project_version(),
         soversion: project_soversion,
-        d_module_versions: ['USE_PGSQL', 'Derelict_Static']
+        d_module_versions: pg_module_versions
 )
 pkgc.generate(name: 'ddbc-pgsql',
               libraries: ddbc_pg_lib,
@@ -48,14 +60,21 @@ pkgc.generate(name: 'ddbc-pgsql',
               version: meson.project_version(),
               requires: ['derelict-pq'],
               description: 'DDBC D database connector built for PostgreSQL.',
-              d_module_versions: ['USE_PGSQL', 'Derelict_Static']
+              d_module_versions: pg_module_versions
 )
+
+# prepare flags for declare_dependency
+pg_dep_compile_flags = []
+foreach m : pg_module_versions
+    pg_dep_compile_flags += dc_version_prefix + m
+endforeach
 
 # to allow others to easily use this as a subproject
 ddbc_pg_dep = declare_dependency(
     link_with: [ddbc_pg_lib],
     include_directories: [src_dir],
-    dependencies: [derelict_pq_dep]
+    dependencies: [derelict_pq_dep],
+    compile_args: pg_dep_compile_flags
 )
 
 #
